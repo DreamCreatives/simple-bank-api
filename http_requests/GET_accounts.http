@@ -1,0 +1,2 @@
+GET http://localhost:8080/accounts?limit=25&page=1
+accept: application/json
