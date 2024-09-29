@@ -23,4 +23,7 @@ run:
 	clear
 	go run main.go
 
-.PHONY: postgres createdb dropdb migrateup migratedown sqlc test run
+mock:
+	mockgen -destination db/mock/store_mock.go -package mockDb github.com/DreamCreatives/simplebank/db/sqlc Store
+
+.PHONY: postgres createdb dropdb migrateup migratedown sqlc test run mock
