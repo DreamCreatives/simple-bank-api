@@ -1,0 +1,9 @@
+POST http://localhost:8080/transfers
+Content-Type: application/json
+
+{
+  "from_account_id": 309,
+  "to_account_id": 503,
+  "currency": "JPY",
+  "amount": 100
+}
