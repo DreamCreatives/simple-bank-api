@@ -4,20 +4,22 @@ import (
 	"database/sql"
 	"errors"
 	db "github.com/DreamCreatives/simplebank/db/sqlc"
+	"github.com/DreamCreatives/simplebank/util"
 	"github.com/gin-gonic/gin"
+	"github.com/lib/pq"
 	"net/http"
 )
 
 type CreateAccountRequest struct {
 	Owner    string `json:"owner" binding:"required"`
-	Currency string `json:"currency" binding:"required,oneof=USD EUR JPY PLN"`
+	Currency string `json:"currency" binding:"required,currency"`
 }
 
 func (server *Server) createAccount(ctx *gin.Context) {
 	var req *CreateAccountRequest
 
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, errorResponse(err))
+		ctx.JSON(http.StatusBadRequest, util.MakeErrorResponse(err))
 		return
 	}
 
@@ -30,7 +32,17 @@ func (server *Server) createAccount(ctx *gin.Context) {
 	acc, err := server.store.CreateAccount(ctx, dbArg)
 
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+
+		var pgErr *pq.Error
+		if errors.As(err, &pgErr) {
+			switch pgErr.Code.Name() {
+			case "foreign_key_violation", "unique_violation":
+				ctx.JSON(http.StatusForbidden, util.MakeErrorResponse(err))
+				return
+			}
+		}
+
+		ctx.JSON(http.StatusInternalServerError, util.MakeErrorResponse(err))
 		return
 	}
 
@@ -46,7 +58,7 @@ func (server *Server) getAccount(ctx *gin.Context) {
 	var req *GetAccountRequest
 
 	if err := ctx.ShouldBindUri(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, errorResponse(err))
+		ctx.JSON(http.StatusBadRequest, util.MakeErrorResponse(err))
 		return
 	}
 
@@ -54,11 +66,11 @@ func (server *Server) getAccount(ctx *gin.Context) {
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			ctx.JSON(http.StatusNotFound, errorResponse(err))
+			ctx.JSON(http.StatusNotFound, util.MakeErrorResponse(err))
 			return
 		}
 
-		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		ctx.JSON(http.StatusInternalServerError, util.MakeErrorResponse(err))
 		return
 	}
 
@@ -75,7 +87,7 @@ func (server *Server) getAccounts(ctx *gin.Context) {
 	var req GetAccountsRequest
 
 	if err := ctx.ShouldBindQuery(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, errorResponse(err))
+		ctx.JSON(http.StatusBadRequest, util.MakeErrorResponse(err))
 		return
 	}
 
@@ -87,14 +99,10 @@ func (server *Server) getAccounts(ctx *gin.Context) {
 	accounts, err := server.store.ListAccounts(ctx, arg)
 
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		ctx.JSON(http.StatusInternalServerError, util.MakeErrorResponse(err))
 		return
 	}
 
 	ctx.JSON(http.StatusOK, accounts)
 	return
-}
-
-func errorResponse(err error) gin.H {
-	return gin.H{"error": err.Error()}
 }
